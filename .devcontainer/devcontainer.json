@@ -3,12 +3,10 @@
     "image": "mcr.microsoft.com/devcontainers/rust:latest",
     "postCreateCommand": "rustc --version",
     "remoteUser": "vscode",
-
     "mounts": [
         // dedicated anynomous volume including the app container user's home to keep dot files accross rebuilds
         "target=/home/vscode,type=volume"
     ],
-
     // Configure tool-specific properties.
     "customizations": {
         "vscode": {
@@ -19,12 +17,13 @@
                 // gh
                 "github.vscode-pull-request-github",
                 "cschleiden.vscode-github-actions",
-                "GitHub.copilot",
-
+                // "GitHub.copilot", it's no fun
                 // rust
                 "vadimcn.vscode-lldb",
                 "rust-lang.rust-analyzer",
-                "serayuzgur.crates"
+                "serayuzgur.crates",
+                "hbenl.vscode-test-explorer",
+                "swellaby.vscode-rust-test-adapter"
             ]
         }
     }
