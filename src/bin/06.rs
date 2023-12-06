@@ -34,9 +34,27 @@ pub fn part_one(input: &str) -> Option<u32> {
 }
 
 pub fn part_two(input: &str) -> Option<u32> {
-    // I entered "find x roots of y = x * (time - x) - distance" into wolfram alpha
-    // and subtracted the lowest root to the highest root
-    None
+    let data = input
+        .lines()
+        .map(|l| &l["Time:     ".len()..])
+        .map(|l| l.replace(" ", ""))
+        .map(|l| l.parse::<i64>().unwrap())
+        .collect::<Vec<_>>();
+
+    let race_time = data[0];
+    let race_distance = data[1];
+
+    let mut valid_ways_count = 0;
+    for time_pressing in 1..(race_time - 1) {
+        let distance = time_pressing * (race_time - time_pressing);
+        if distance >= race_distance {
+            valid_ways_count += 1;
+        } else if valid_ways_count > 0 {
+            break;
+        }
+    }
+
+    Some(valid_ways_count)
 }
 
 #[cfg(test)]
@@ -52,6 +70,6 @@ mod tests {
     #[test]
     fn test_part_two() {
         let result = part_two(&advent_of_code::template::read_file("examples", DAY, 1));
-        assert_eq!(result, None);
+        assert_eq!(result, Some(71503));
     }
 }
