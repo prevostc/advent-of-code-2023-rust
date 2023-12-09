@@ -25,6 +25,7 @@ impl SensorData {
 
         return Self { pyramid };
     }
+
     fn predict_p1(&mut self) -> i64 {
         let h = self.pyramid.rows();
         let w = self.pyramid.cols();
@@ -120,18 +121,16 @@ impl SensorData {
         let w = self.pyramid.cols();
         let space = "    ";
         for l in 0..h {
-            for _ in 0..l {
-                print!("{space}");
-            }
+            print!("{}", space.repeat(l));
             for c in 0..(w - l) {
                 match self.pyramid[(l, c)] {
-                    None => print!("{}{space}{space}", "x"),
-                    Some(v) => print!("{}{space}{space}", v),
+                    None => print!("x{0}{0}", space),
+                    Some(v) => print!("{1}{0}{0}", space, v),
                 }
             }
-            println!("");
+            println!();
         }
-        println!("");
+        println!();
     }
 }
 
