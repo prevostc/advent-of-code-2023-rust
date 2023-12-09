@@ -19,19 +19,12 @@ impl SensorData {
         };
         let values = s
             .split(" ")
-            .map(|cs| {
-                if cs.eq("x") {
-                    None
-                } else {
-                    Some(cs.parse::<i64>().unwrap())
-                }
-            })
+            .map(|cs| cs.parse::<i64>().ok())
             .collect::<Vec<_>>();
         pyramid.insert_row(0, values);
 
         return Self { pyramid };
     }
-
     fn predict_p1(&mut self) -> i64 {
         let h = self.pyramid.rows();
         let w = self.pyramid.cols();
