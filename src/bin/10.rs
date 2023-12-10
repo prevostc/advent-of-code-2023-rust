@@ -118,10 +118,10 @@ impl Field {
     }
 }
 
-pub fn part_one(input: &str) -> Option<i32> {
+pub fn part(input: &str, p1: bool) -> Option<i32> {
     let field = Field::from_str(input);
 
-    // have 4 pointers going from the sheep and trying to meet
+    // compute the visited parts
     let mut visited: Grid<bool> = Grid::from_vec(
         field.data.iter().map(|_| false).collect::<Vec<_>>(),
         field.data.cols(),
@@ -131,7 +131,6 @@ pub fn part_one(input: &str) -> Option<i32> {
     queue.push_front((field.sheep_starts_at, 0));
 
     let mut max_dst = 0;
-
     while let Some((pos, dst)) = queue.pop_back() {
         if visited[pos] {
             continue;
@@ -153,43 +152,8 @@ pub fn part_one(input: &str) -> Option<i32> {
             }
         }
     }
-    Some(max_dst)
-}
-
-pub fn part_two(input: &str) -> Option<i32> {
-    let field = Field::from_str(input);
-
-    // compute the visited parts
-    let mut visited: Grid<bool> = Grid::from_vec(
-        field.data.iter().map(|_| false).collect::<Vec<_>>(),
-        field.data.cols(),
-    );
-
-    let mut queue = VecDeque::new();
-    queue.push_front((field.sheep_starts_at, 0));
-
-    let mut max_dst = 0;
-
-    while let Some((pos, dst)) = queue.pop_back() {
-        if visited[pos] {
-            continue;
-        }
-        visited[pos] = true;
-
-        // push compatible neighbours
-        for n in field.adjacent(pos) {
-            let compatible = match (pos, n, field.data[pos], field.data[n]) {
-                (_, _, _, Tile::Nothing) => false,
-                (_, _, Tile::Nothing, _) => false,
-                (_, _, to, tn) => to.is_pipe_compatible(pos, tn, n),
-            };
-
-            if compatible && !visited[n] {
-                let new_dst = dst + 1;
-                max_dst = cmp::max(new_dst, max_dst);
-                queue.push_front((n, new_dst));
-            }
-        }
+    if p1 {
+        return Some(max_dst);
     }
 
     // now for each dot, see if we can reach the border with an odd number of visited nodes
@@ -255,6 +219,13 @@ pub fn part_two(input: &str) -> Option<i32> {
         }
     }
     Some(inside_count)
+}
+
+pub fn part_one(input: &str) -> Option<i32> {
+    part(input, true)
+}
+pub fn part_two(input: &str) -> Option<i32> {
+    part(input, false)
 }
 
 #[cfg(test)]
