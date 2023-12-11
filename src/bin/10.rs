@@ -1,7 +1,4 @@
-use std::collections::VecDeque;
-
 use grid::Grid;
-use itertools::Itertools;
 use std::cmp;
 
 advent_of_code::solution!(10);
@@ -20,7 +17,6 @@ impl UsizeAddI32 for usize {
 }
 
 type Position = (usize, usize);
-
 type PositionDiff = (i32, i32);
 
 trait PositionAddDiff {
@@ -58,9 +54,8 @@ impl Tile {
     fn can_receive(&self, pos: Position, from_pos: Position) -> bool {
         match self {
             Tile::Pipe(_, a, b) => {
-                let can_receive_from_a = pos.add(*a).map_or(false, |np| np.eq(&from_pos));
-                let can_receive_from_b = pos.add(*b).map_or(false, |np| np.eq(&from_pos));
-                can_receive_from_a || can_receive_from_b
+                pos.add(*a).map_or(false, |np| np.eq(&from_pos))
+                    || pos.add(*b).map_or(false, |np| np.eq(&from_pos))
             }
             _ => false,
         }
@@ -110,13 +105,21 @@ impl Field {
         }
     }
 
-    fn adjacent(&self, pos: Position) -> Vec<Position> {
+    fn next_compatible_adjacent(&self, pos: Position, from: Position) -> Option<Position> {
         vec![(-1, 0), (0, 1), (1, 0), (0, -1)]
             .iter()
             .flat_map(|n| pos.add(*n))
             .filter(|n| n.0 < self.data.rows() && n.1 < self.data.cols())
-            .map(|n| n.clone())
-            .collect()
+            .filter(move |n| !n.eq(&from))
+            .filter(|n| {
+                let compatible = match (self.data[pos], self.data[*n]) {
+                    (Tile::Nothing, _) | (_, Tile::Nothing) => false,
+                    (to, tn) => to.is_pipe_compatible(pos, tn, *n),
+                };
+                compatible
+            })
+            .take(1)
+            .next()
     }
 }
 
@@ -129,33 +132,24 @@ pub fn part(input: &str, p1: bool) -> Option<i32> {
         field.data.cols(),
     );
 
-    let mut queue = VecDeque::new();
-    queue.push_front((field.sheep_starts_at, 0));
-
-    let mut max_dst = 0;
-    while let Some((pos, dst)) = queue.pop_back() {
-        if visited[pos] {
-            continue;
+    let origin = field.sheep_starts_at;
+    let mut cur_pos = origin;
+    let mut coming_from = origin;
+    let mut distance = 0;
+    while let Some(next_adjacent) = field.next_compatible_adjacent(cur_pos, coming_from) {
+        // stop if we are back at the origin
+        if next_adjacent == origin {
+            break;
         }
-        visited[pos] = true;
 
-        // push compatible neighbours
-        for n in field.adjacent(pos) {
-            let compatible = match (pos, n, field.data[pos], field.data[n]) {
-                (_, _, _, Tile::Nothing) => false,
-                (_, _, Tile::Nothing, _) => false,
-                (_, _, to, tn) => to.is_pipe_compatible(pos, tn, n),
-            };
-
-            if compatible && !visited[n] {
-                let new_dst = dst + 1;
-                max_dst = cmp::max(new_dst, max_dst);
-                queue.push_front((n, new_dst));
-            }
-        }
+        visited[cur_pos] = true;
+        coming_from = cur_pos;
+        cur_pos = next_adjacent;
+        distance += 1;
     }
+
     if p1 {
-        return Some(max_dst);
+        return Some((distance / 2) + 1);
     }
 
     // now for each dot, see if we can reach the border with an odd number of visited nodes
@@ -171,21 +165,17 @@ pub fn part(input: &str, p1: bool) -> Option<i32> {
             } else {
                 (col + 1)..field.data.cols()
             };
-            let counts = range
-                .map(|c| (line, c))
-                .filter(|coo| visited[*coo])
-                .filter_map(|coo| match field.data[coo] {
-                    Tile::Pipe(c, _, _) => Some(c),
-                    _ => None,
-                })
-                .counts();
+            let counts = range.map(|c| (line, c)).filter(|coo| visited[*coo]).fold(
+                (0, 0, 0),
+                |(b, f7, lj), coo| match field.data[coo] {
+                    Tile::Pipe('F' | '7', _, _) => (b, f7 + 1, lj),
+                    Tile::Pipe('L' | 'J', _, _) => (b, f7, lj + 1),
+                    Tile::Pipe('|', _, _) => (b + 1, f7, lj),
+                    _ => (b, f7, lj),
+                },
+            );
 
-            let jumps = counts.get(&'|').unwrap_or(&0)
-                + cmp::min(
-                    counts.get(&'F').unwrap_or(&0) + counts.get(&'7').unwrap_or(&0),
-                    counts.get(&'L').unwrap_or(&0) + counts.get(&'J').unwrap_or(&0),
-                );
-
+            let jumps = counts.0 + cmp::min(counts.1, counts.2);
             jumps % 2 == 1
         })
         .count();
@@ -250,20 +240,6 @@ mod tests {
         assert_eq!(pos.add((-10, -5)), Some((0, 5)));
         assert_eq!(pos.add((-11, -5)), None);
         assert_eq!(pos.add((-5, -11)), None);
-    }
-
-    #[test]
-    fn test_adjacent() {
-        let field = Field::from_str(
-            ".....
-.....
-..S..
-.....
-.....",
-        );
-        assert_eq!(field.adjacent((1, 1)), vec![(0, 1), (1, 2), (2, 1), (1, 0)]);
-        assert_eq!(field.adjacent((0, 0)), vec![(0, 1), (1, 0)]);
-        assert_eq!(field.adjacent((4, 4)), vec![(3, 4), (4, 3)]);
     }
 
     #[test]
