@@ -1,4 +1,5 @@
 use grid::Grid;
+use rayon::prelude::*;
 use std::cmp;
 
 advent_of_code::solution!(10);
@@ -157,6 +158,7 @@ pub fn part(input: &str, p1: bool) -> Option<i32> {
     let res = field
         .data
         .indexed_iter()
+        // .par_bridge() // use rayon parallelism
         .filter_map(|(coo, _)| if visited[coo] { None } else { Some(coo) })
         .filter(|coo| {
             let (line, col) = *coo;
