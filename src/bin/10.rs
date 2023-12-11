@@ -1,6 +1,7 @@
 use std::collections::VecDeque;
 
 use grid::Grid;
+use itertools::Itertools;
 use std::cmp;
 
 advent_of_code::solution!(10);
@@ -19,6 +20,7 @@ impl UsizeAddI32 for usize {
 }
 
 type Position = (usize, usize);
+
 type PositionDiff = (i32, i32);
 
 trait PositionAddDiff {
@@ -157,68 +159,38 @@ pub fn part(input: &str, p1: bool) -> Option<i32> {
     }
 
     // now for each dot, see if we can reach the border with an odd number of visited nodes
-    let mut inside_count = 0;
-    for line in 0..field.data.rows() {
-        for col in 0..field.data.cols() {
-            if visited[(line, col)] {
-                continue;
-            }
+    let mid_point = field.data.cols() / 2;
+    let res = field
+        .data
+        .indexed_iter()
+        .filter_map(|(coo, _)| if visited[coo] { None } else { Some(coo) })
+        .filter(|coo| {
+            let (line, col) = *coo;
+            let range = if col > mid_point {
+                0..col
+            } else {
+                (col + 1)..field.data.cols()
+            };
+            let counts = range
+                .map(|c| (line, c))
+                .filter(|coo| visited[*coo])
+                .filter_map(|coo| match field.data[coo] {
+                    Tile::Pipe(c, _, _) => Some(c),
+                    _ => None,
+                })
+                .counts();
 
-            // horizontally, F cancels 7, L cancels J
-            let mut is_inside = false;
-            // left
-            for r in vec![(0..col), (col + 1)..field.data.cols()] {
-                let mut jumps: i32 = 0;
-                let mut tF7s: i32 = 0;
-                let mut tJLs: i32 = 0;
-                for c in r {
-                    let coo = (line, c);
-                    if !visited[coo] {
-                        continue;
-                    }
-                    match field.data[coo] {
-                        Tile::Pipe('F' | '7', _, _) => tF7s += 1,
-                        Tile::Pipe('L' | 'J', _, _) => tJLs += 1,
-                        Tile::Pipe('|', _, _) => jumps += 1,
-                        _ => {}
-                    }
-                }
-                jumps += cmp::min(tF7s, tJLs);
-                if jumps % 2 == 1 {
-                    is_inside = true;
-                    break;
-                }
-            }
+            let jumps = counts.get(&'|').unwrap_or(&0)
+                + cmp::min(
+                    counts.get(&'F').unwrap_or(&0) + counts.get(&'7').unwrap_or(&0),
+                    counts.get(&'L').unwrap_or(&0) + counts.get(&'J').unwrap_or(&0),
+                );
 
-            for r in vec![(0..line), (line + 1)..field.data.rows()] {
-                let mut jumps: i32 = 0;
-                let mut tFLs: i32 = 0;
-                let mut t7Js: i32 = 0;
-                for l in r {
-                    let coo = (l, col);
-                    if !visited[coo] {
-                        continue;
-                    }
-                    match field.data[coo] {
-                        Tile::Pipe('F' | 'L', _, _) => tFLs += 1,
-                        Tile::Pipe('7' | 'J', _, _) => t7Js += 1,
-                        Tile::Pipe('-', _, _) => jumps += 1,
-                        _ => {}
-                    }
-                }
-                jumps += cmp::min(tFLs, t7Js);
-                if jumps % 2 == 1 {
-                    is_inside = true;
-                    break;
-                }
-            }
+            jumps % 2 == 1
+        })
+        .count();
 
-            if is_inside {
-                inside_count += 1;
-            }
-        }
-    }
-    Some(inside_count)
+    return Some(res as i32);
 }
 
 pub fn part_one(input: &str) -> Option<i32> {
