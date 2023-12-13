@@ -1,0 +1,9 @@
+[package]
+name = "bitvec"
+version = "0.0.1"
+publish = false
+
+[lib]
+name = "bitvec"
+test = true
+plugin = false

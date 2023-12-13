@@ -6,6 +6,7 @@ version = 3
 name = "advent_of_code"
 version = "0.9.2"
 dependencies = [
+ "bitvec",
  "grid",
  "itertools",
  "memoise",
@@ -30,6 +31,10 @@ name = "autocfg"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d468802bab17cbc0cc575e9b053f41e72aa36bfa6b7f55e3529ffa43161b97fa"
+
+[[package]]
+name = "bitvec"
+version = "0.0.1"
 
 [[package]]
 name = "cfg-if"
