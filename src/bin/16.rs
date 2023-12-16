@@ -1,5 +1,6 @@
 use grid::*;
 use itertools::Itertools;
+use rayon::prelude::*;
 advent_of_code::solution!(16);
 
 #[derive(Debug, Clone, PartialEq)]
@@ -103,6 +104,10 @@ impl Map {
         }
     }
 
+    fn init(&mut self, initial_beam: Beam) {
+        self.beams = vec![initial_beam];
+    }
+
     fn step_beams(&mut self) {
         let mut nb = Vec::with_capacity(self.beams.len() + 1);
         for b in self.beams.iter_mut() {
@@ -170,7 +175,7 @@ pub fn part_one(input: &str) -> Option<u32> {
 }
 
 pub fn part_two(input: &str) -> Option<u32> {
-    let mut map = Map::new(input);
+    let map = Map::new(input);
 
     let top_row = (0..map.grid.cols()).map(|c| Beam::new((-1, c as isize), (1, 0)));
     let bottom_row =
@@ -184,20 +189,19 @@ pub fn part_two(input: &str) -> Option<u32> {
         .chain(right_col)
         .collect_vec();
 
-    let mut max_energy = 0;
-    for start_beam in all_edge_beams {
-        map.reset(start_beam);
-        while map.beams.len() > 0 {
-            map.step_beams();
-        }
-        let energy = map.count_energized();
-        if energy > max_energy {
-            println!("new max energy: {}", energy);
-            max_energy = energy;
-        }
-    }
+    let max_energy = all_edge_beams
+        .par_iter()
+        .map(|start_beam| {
+            let mut map_copy = map.clone();
+            map_copy.init(start_beam.clone());
+            while map_copy.beams.len() > 0 {
+                map_copy.step_beams();
+            }
+            map_copy.count_energized()
+        })
+        .max();
 
-    Some(max_energy)
+    max_energy
 }
 
 #[cfg(test)]
