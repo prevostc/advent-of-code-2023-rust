@@ -10,6 +10,7 @@ dependencies = [
  "grid",
  "itertools",
  "memoise",
+ "mygrid",
  "num",
  "pico-args",
  "range-ext",
@@ -121,6 +122,10 @@ dependencies = [
  "quote",
  "syn",
 ]
+
+[[package]]
+name = "mygrid"
+version = "0.0.1"
 
 [[package]]
 name = "num"

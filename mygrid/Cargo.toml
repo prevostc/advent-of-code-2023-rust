@@ -1,0 +1,9 @@
+[package]
+name = "mygrid"
+version = "0.0.1"
+publish = false
+
+[lib]
+name = "mygrid"
+test = true
+plugin = false
