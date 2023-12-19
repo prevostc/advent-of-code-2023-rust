@@ -16,7 +16,6 @@ struct Parts(u64, u64, u64, u64);
 #[derive(Debug)]
 enum Op {
     Gt(u64),
-    Eq(u64),
     Lt(u64),
     True,
 }
@@ -61,7 +60,6 @@ fn parse(input: &str) -> (HashMap<&str, Vec<(u64, Op, Action<'_>)>>, Vec<Parts>)
             let right = right_str.parse::<u64>().unwrap();
             let op = match op_str {
                 ">" => Op::Gt(right),
-                "=" => Op::Eq(right),
                 "<" => Op::Lt(right),
                 _ => panic!("Unknown op {}", op_str),
             };
@@ -97,17 +95,13 @@ fn parse(input: &str) -> (HashMap<&str, Vec<(u64, Op, Action<'_>)>>, Vec<Parts>)
 
 pub fn part_one(input: &str) -> Option<u64> {
     let (workflows, parts) = parse(input);
-    //println!("{:?}", workflows);
-    //println!("{:?}", parts);
 
     let mut total = 0;
     for part in parts {
         let mut pos = "in";
         let mut visited = HashSet::with_capacity(workflows.len());
 
-        //println!("======= Starting {:?}", part);
         loop {
-            //println!("{}", pos);
             if visited.contains(&pos) {
                 break;
             }
@@ -125,27 +119,17 @@ pub fn part_one(input: &str) -> Option<u64> {
 
                 let decision = match op {
                     Op::Gt(right) => val > *right,
-                    Op::Eq(right) => val == *right,
                     Op::Lt(right) => val < *right,
                     Op::True => true,
                 };
 
                 if decision {
                     match action {
-                        Action::Accept => {
-                            total += part.0 + part.1 + part.2 + part.3;
-                            //println!("ACCEPTED {} {:?}", total, part);
-                            break;
-                        }
-                        Action::Reject => {
-                            //println!("REJECTED {:?}", part);
-                            break;
-                        }
-                        Action::Goto(g) => {
-                            pos = g;
-                            break;
-                        }
+                        Action::Accept => total += part.0 + part.1 + part.2 + part.3,
+                        Action::Reject => {}
+                        Action::Goto(g) => pos = g,
                     }
+                    break;
                 }
             }
         }
@@ -180,17 +164,6 @@ pub fn part_two(input: &str) -> Option<u64> {
                         (true, (cmp::max(*right + 1, min), max)),
                     ]
                 }
-                Op::Eq(right) => {
-                    if *right < min || *right > max {
-                        vec![]
-                    } else {
-                        vec![
-                            (true, (*right, *right)),
-                            (false, (min, cmp::min(*right - 1, max))),
-                            (false, (cmp::max(*right + 1, min), max)),
-                        ]
-                    }
-                }
                 Op::Lt(right) => {
                     vec![
                         (true, (min, cmp::min(*right - 1, max))),
@@ -204,28 +177,26 @@ pub fn part_two(input: &str) -> Option<u64> {
                 if min > max {
                     continue;
                 }
+                if let Action::Reject = action {
+                    continue;
+                }
+
+                let mut new_ranges = ranges.clone();
+                new_ranges[*part_idx as usize] = (min, max);
 
                 if !decision {
-                    let mut new_ranges = ranges.clone();
-                    new_ranges[*part_idx as usize] = (min, max);
                     branches.push_back((rule_idx + 1, new_ranges));
                     continue;
                 }
                 match action {
                     Action::Accept => {
-                        let mut new_ranges = ranges.clone();
-                        new_ranges[*part_idx as usize] = (min, max);
                         sum_possible += (new_ranges[0].1 - new_ranges[0].0 + 1)
                             * (new_ranges[1].1 - new_ranges[1].0 + 1)
                             * (new_ranges[2].1 - new_ranges[2].0 + 1)
                             * (new_ranges[3].1 - new_ranges[3].0 + 1);
                     }
+                    Action::Goto(g) => q.push_back((g, new_ranges)),
                     Action::Reject => {}
-                    Action::Goto(g) => {
-                        let mut new_ranges = ranges.clone();
-                        new_ranges[*part_idx as usize] = (min, max);
-                        q.push_back((g, new_ranges))
-                    }
                 }
             }
         }
