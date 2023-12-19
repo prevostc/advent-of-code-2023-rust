@@ -38,6 +38,16 @@ impl Point {
             self.column + direction.horizontal,
         )
     }
+
+    #[inline]
+    pub fn max(&self, other: &Point) -> Self {
+        Point::new(self.line.max(other.line), self.column.max(other.column))
+    }
+
+    #[inline]
+    pub fn min(&self, other: &Point) -> Self {
+        Point::new(self.line.min(other.line), self.column.min(other.column))
+    }
 }
 
 impl Hash for Point {
@@ -45,6 +55,12 @@ impl Hash for Point {
     fn hash<H: Hasher>(&self, hasher: &mut H) {
         hasher.write_isize(self.line);
         hasher.write_isize(self.column);
+    }
+}
+
+impl std::fmt::Display for Point {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "(l:{}, c:{})", self.line, self.column)
     }
 }
 
@@ -164,6 +180,13 @@ impl From<char> for Direction {
     }
 }
 
+impl From<&str> for Direction {
+    #[inline]
+    fn from(value: &str) -> Self {
+        Direction::from(value.chars().next().unwrap())
+    }
+}
+
 impl std::fmt::Display for Direction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match *self {
@@ -206,6 +229,18 @@ pub struct Grid<T> {
 
 impl<T> Grid<T> {
     #[inline]
+    pub fn new(width: usize, height: usize, default: T) -> Self
+    where
+        T: Copy,
+    {
+        Self {
+            width,
+            height,
+            content: vec![default; width * height],
+        }
+    }
+
+    #[inline]
     pub fn new_from_str(input: &str, map_char: &dyn Fn(char) -> T) -> Self
     where
         T: From<char>,
@@ -246,15 +281,76 @@ impl<T> Grid<T> {
     pub fn rows(&self) -> usize {
         self.height
     }
+
+    #[inline]
+    pub fn resize(&mut self, width: usize, height: usize, default: T)
+    where
+        T: Copy,
+    {
+        // we can't use vec.resize because it would just truncate the last elements on shrink
+        let mut new_content = vec![default; width * height];
+        for line in 0..height {
+            for column in 0..width {
+                let point = Point::new(line as isize, column as isize);
+                if self.is_in_bounds(point) {
+                    new_content[(line * width) + column] = self[point];
+                } else {
+                    new_content[(line * width) + column] = default;
+                }
+            }
+        }
+        self.content = new_content;
+        self.width = width;
+        self.height = height;
+    }
+
+    #[inline]
+    pub fn resize_to_max_point(&mut self, point: Point, default: T)
+    where
+        T: Copy,
+    {
+        let width = (point.column + 1) as usize;
+        let height = (point.line + 1) as usize;
+        self.resize(width, height, default);
+    }
+
+    #[inline]
+    pub fn clamp(&mut self, min: Point, max: Point, default: T)
+    where
+        T: Copy,
+    {
+        let width = (max.column - min.column + 1) as usize;
+        let height = (max.line - min.line + 1) as usize;
+        let mut new_content = vec![default; width * height];
+        for line in min.line..=max.line {
+            for column in min.column..=max.column {
+                let point = Point::new(line, column);
+                let index = (((line - min.line) * width as isize) + (column - min.column)) as usize;
+                if self.is_in_bounds(point) {
+                    new_content[index] = self[point];
+                } else {
+                    new_content[index] = default;
+                }
+            }
+        }
+        self.content = new_content;
+        self.width = width;
+        self.height = height;
+    }
 }
 
-impl<T: Copy + PartialEq> Grid<T> {
+impl<T> Grid<T> {
     #[inline]
     pub fn is_in_bounds(&self, point: Point) -> bool {
         point.column >= 0
             && point.column < (self.width as isize)
             && point.line >= 0
             && point.line < (self.height as isize)
+    }
+
+    #[inline]
+    pub fn iter(&self) -> impl Iterator<Item = &T> {
+        self.content.iter()
     }
 }
 
@@ -321,6 +417,24 @@ mod tests {
         let point = Point::new_i32(1, 2);
         assert_eq!(point.line, 1);
         assert_eq!(point.column, 2);
+    }
+
+    #[test]
+    pub fn test_point_max() {
+        let point = Point::new(1, 2);
+        let other = Point::new(3, 1);
+        let max = point.max(&other);
+        assert_eq!(max.line, 3);
+        assert_eq!(max.column, 2);
+    }
+
+    #[test]
+    pub fn test_point_min() {
+        let point = Point::new(1, 2);
+        let other = Point::new(3, 1);
+        let min = point.min(&other);
+        assert_eq!(min.line, 1);
+        assert_eq!(min.column, 1);
     }
 
     #[test]
@@ -487,5 +601,81 @@ mod tests {
         assert_eq!(grid.width, 3);
         assert_eq!(grid.height, 3);
         assert_eq!(grid.content.len(), 9);
+    }
+
+    #[test]
+    pub fn test_grid_resize_shrink() {
+        let mut grid = Grid::new_from_str("123\n456\n789", &|c| c);
+        grid.resize(2, 2, '0');
+        assert_eq!(grid.width, 2);
+        assert_eq!(grid.height, 2);
+        assert_eq!(grid.content.len(), 4);
+        assert_eq!(grid.content[0], '1');
+        assert_eq!(grid.content[1], '2');
+        assert_eq!(grid.content[2], '4');
+        assert_eq!(grid.content[3], '5');
+    }
+
+    #[test]
+    pub fn test_grid_resize_grow() {
+        let mut grid = Grid::new_from_str("123\n456\n789", &|c| c);
+        grid.resize(4, 4, '0');
+        assert_eq!(grid.width, 4);
+        assert_eq!(grid.height, 4);
+        assert_eq!(grid.content.len(), 16);
+        assert_eq!(grid.content[0], '1');
+        assert_eq!(grid.content[1], '2');
+        assert_eq!(grid.content[2], '3');
+        assert_eq!(grid.content[3], '0');
+        assert_eq!(grid.content[4], '4');
+        assert_eq!(grid.content[5], '5');
+        assert_eq!(grid.content[6], '6');
+        assert_eq!(grid.content[7], '0');
+        assert_eq!(grid.content[8], '7');
+        assert_eq!(grid.content[9], '8');
+        assert_eq!(grid.content[10], '9');
+        assert_eq!(grid.content[11], '0');
+        assert_eq!(grid.content[12], '0');
+        assert_eq!(grid.content[13], '0');
+        assert_eq!(grid.content[14], '0');
+        assert_eq!(grid.content[15], '0');
+    }
+
+    #[test]
+    pub fn test_grid_resize_to_max_point() {
+        let mut grid = Grid::new_from_str("123\n456\n789", &|c| c);
+        grid.resize_to_max_point(Point::new(3, 3), '0');
+        assert_eq!(grid.width, 4);
+        assert_eq!(grid.height, 4);
+        assert_eq!(grid.content.len(), 16);
+        assert_eq!(grid.content[0], '1');
+        assert_eq!(grid.content[1], '2');
+        assert_eq!(grid.content[2], '3');
+        assert_eq!(grid.content[3], '0');
+        assert_eq!(grid.content[4], '4');
+        assert_eq!(grid.content[5], '5');
+        assert_eq!(grid.content[6], '6');
+        assert_eq!(grid.content[7], '0');
+        assert_eq!(grid.content[8], '7');
+        assert_eq!(grid.content[9], '8');
+        assert_eq!(grid.content[10], '9');
+        assert_eq!(grid.content[11], '0');
+        assert_eq!(grid.content[12], '0');
+        assert_eq!(grid.content[13], '0');
+        assert_eq!(grid.content[14], '0');
+        assert_eq!(grid.content[15], '0');
+    }
+
+    #[test]
+    pub fn test_grid_clamp() {
+        let mut grid = Grid::new_from_str("123\n456\n789", &|c| c);
+        grid.clamp(Point::new(1, 1), Point::new(2, 2), '0');
+        assert_eq!(grid.width, 2);
+        assert_eq!(grid.height, 2);
+        assert_eq!(grid.content.len(), 4);
+        assert_eq!(grid.content[0], '5');
+        assert_eq!(grid.content[1], '6');
+        assert_eq!(grid.content[2], '8');
+        assert_eq!(grid.content[3], '9');
     }
 }
