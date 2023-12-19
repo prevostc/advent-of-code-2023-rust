@@ -11,16 +11,13 @@ enum Action<'a> {
 }
 
 #[derive(Debug)]
-struct Parts(u64, u64, u64, u64);
-
-#[derive(Debug)]
 enum Op {
     Gt(u64),
     Lt(u64),
     True,
 }
 
-fn parse(input: &str) -> (HashMap<&str, Vec<(u64, Op, Action<'_>)>>, Vec<Parts>) {
+fn parse(input: &str) -> (HashMap<&str, Vec<(usize, Op, Action<'_>)>>, Vec<Vec<u64>>) {
     let (workflows_str, ratings_str) = input.split_once("\n\n").unwrap();
 
     let mut workflows = HashMap::new();
@@ -86,7 +83,7 @@ fn parse(input: &str) -> (HashMap<&str, Vec<(u64, Op, Action<'_>)>>, Vec<Parts>)
         let a = caps.get(3).unwrap().as_str().parse::<u64>().unwrap();
         let s = caps.get(4).unwrap().as_str().parse::<u64>().unwrap();
 
-        let part = Parts(x, m, a, s);
+        let part = vec![x, m, a, s];
         parts.push(part);
     }
 
@@ -109,13 +106,7 @@ pub fn part_one(input: &str) -> Option<u64> {
             let rules = workflows.get(pos).unwrap();
             for rule in rules {
                 let (idx, op, action) = rule;
-                let val = match idx {
-                    0 => part.0,
-                    1 => part.1,
-                    2 => part.2,
-                    3 => part.3,
-                    _ => panic!("Unknown register {}", idx),
-                };
+                let val = part[*idx];
 
                 let decision = match op {
                     Op::Gt(right) => val > *right,
@@ -125,7 +116,7 @@ pub fn part_one(input: &str) -> Option<u64> {
 
                 if decision {
                     match action {
-                        Action::Accept => total += part.0 + part.1 + part.2 + part.3,
+                        Action::Accept => total += part.iter().sum::<u64>(),
                         Action::Reject => {}
                         Action::Goto(g) => pos = g,
                     }
@@ -173,30 +164,22 @@ pub fn part_two(input: &str) -> Option<u64> {
                 Op::True => vec![(true, (min, max))],
             };
 
-            for (decision, (min, max)) in next_branches_decision {
-                if min > max {
-                    continue;
-                }
-                if let Action::Reject = action {
-                    continue;
-                }
-
+            for (decision, (min, max)) in next_branches_decision
+                .iter()
+                .filter(|(_, (min, max))| min <= max)
+            {
                 let mut new_ranges = ranges.clone();
-                new_ranges[*part_idx as usize] = (min, max);
-
-                if !decision {
-                    branches.push_back((rule_idx + 1, new_ranges));
-                    continue;
-                }
-                match action {
-                    Action::Accept => {
+                new_ranges[*part_idx as usize] = (*min, *max);
+                match (decision, action) {
+                    (false, _) => branches.push_back((rule_idx + 1, new_ranges)),
+                    (true, Action::Accept) => {
                         sum_possible += (new_ranges[0].1 - new_ranges[0].0 + 1)
                             * (new_ranges[1].1 - new_ranges[1].0 + 1)
                             * (new_ranges[2].1 - new_ranges[2].0 + 1)
-                            * (new_ranges[3].1 - new_ranges[3].0 + 1);
+                            * (new_ranges[3].1 - new_ranges[3].0 + 1)
                     }
-                    Action::Goto(g) => q.push_back((g, new_ranges)),
-                    Action::Reject => {}
+                    (true, Action::Reject) => {}
+                    (true, Action::Goto(g)) => q.push_back((g, new_ranges)),
                 }
             }
         }
