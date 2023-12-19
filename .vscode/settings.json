@@ -1,6 +1,9 @@
 {
     "rust-analyzer.linkedProjects": [
         "./mygrid/Cargo.toml",
-        "./bitvec/Cargo.toml"
+        "./bitvec/Cargo.toml",
+        "./Cargo.toml",
+        "./mygrid/Cargo.toml",
+        "./mygrid/Cargo.toml"
     ]
 }
