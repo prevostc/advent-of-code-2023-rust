@@ -4,13 +4,13 @@
 // https://github.com/maneatingape/advent-of-code-rust/blob/main/src/util/point.rs
 
 use std::hash::{Hash, Hasher};
-use std::ops::Add;
+use std::ops::{Add, Mul};
 use std::ops::{Index, IndexMut};
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct Point {
-    line: isize,
-    column: isize,
+    pub line: isize,
+    pub column: isize,
 }
 
 impl Point {
@@ -89,8 +89,6 @@ pub const ALL_AROUND: [Direction; 8] = [
 impl Direction {
     #[inline]
     pub const fn new(vertical: isize, horizontal: isize) -> Self {
-        assert!(vertical.abs() <= 1);
-        assert!(horizontal.abs() <= 1);
         Direction {
             vertical,
             horizontal,
@@ -154,8 +152,6 @@ impl Direction {
     pub fn add_direction_mut(&mut self, other: &Direction) {
         self.vertical += other.vertical;
         self.horizontal += other.horizontal;
-        assert!(self.vertical.abs() <= 1);
-        assert!(self.horizontal.abs() <= 1);
     }
 }
 
@@ -217,6 +213,24 @@ impl Add<Direction> for Direction {
             self.vertical + rhs.vertical,
             self.horizontal + rhs.horizontal,
         )
+    }
+}
+
+impl Mul<isize> for Direction {
+    type Output = Direction;
+
+    #[inline]
+    fn mul(self, rhs: isize) -> Self::Output {
+        Direction::new(self.vertical * rhs, self.horizontal * rhs)
+    }
+}
+
+impl Mul<i32> for Direction {
+    type Output = Direction;
+
+    #[inline]
+    fn mul(self, rhs: i32) -> Self::Output {
+        self * (rhs as isize)
     }
 }
 
@@ -496,6 +510,14 @@ mod tests {
         let direction = Direction::from('R');
         assert_eq!(direction.vertical, 0);
         assert_eq!(direction.horizontal, 1);
+    }
+
+    #[test]
+    pub fn test_direction_mult() {
+        let direction = Direction::new(2, 0);
+        let new_direction: Direction = direction * 2;
+        assert_eq!(new_direction.vertical, 4);
+        assert_eq!(new_direction.horizontal, 0);
     }
 
     #[test]

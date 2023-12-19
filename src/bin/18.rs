@@ -3,14 +3,14 @@ use std::collections::VecDeque;
 
 advent_of_code::solution!(18);
 
-pub fn part_one(input: &str) -> Option<u32> {
+pub fn part_one(input: &str) -> Option<i64> {
     // parse instructions
     let instructions = input
         .lines()
         .map(|line| {
             let mut parts = line.split_whitespace();
             let dir: Direction = parts.next().unwrap().into();
-            let dist: u32 = parts.next().unwrap().parse().unwrap();
+            let dist: i64 = parts.next().unwrap().parse().unwrap();
             (dir, dist)
         })
         .collect::<Vec<_>>();
@@ -62,7 +62,7 @@ pub fn part_one(input: &str) -> Option<u32> {
     Some(count)
 }
 
-pub fn part_two(input: &str) -> Option<u32> {
+pub fn part_two(input: &str) -> Option<i64> {
     // parse instructions
     let instructions = input
         .lines()
@@ -70,7 +70,7 @@ pub fn part_two(input: &str) -> Option<u32> {
             let mut parts = line.split_whitespace();
             let rgb = parts.nth(2).unwrap();
             let dist = i32::from_str_radix(&rgb[2..rgb.len() - 2], 16).unwrap();
-            let dir = match rgb.chars().nth(7) {
+            let dir = match rgb.chars().nth(7).unwrap() {
                 '0' => RIGHT,
                 '1' => DOWN,
                 '2' => LEFT,
@@ -80,8 +80,19 @@ pub fn part_two(input: &str) -> Option<u32> {
             (dir, dist)
         })
         .collect::<Vec<_>>();
+    //println!("{:?}", instructions);
 
-    None
+    // https://www.mathopenref.com/coordpolygonarea.html
+    let mut pos = Point::new(0, 0);
+    let mut agg: i64 = 0;
+    let mut border = 0;
+    for (dir, dist) in instructions {
+        let new_pos = pos + (dir * dist);
+        agg += pos.column as i64 * new_pos.line as i64 - pos.line as i64 * new_pos.column as i64;
+        pos = new_pos;
+        border += dist as i64;
+    }
+    Some((agg.abs() / 2) + (border / 2) + 1)
 }
 
 #[cfg(test)]
@@ -97,6 +108,6 @@ mod tests {
     #[test]
     fn test_part_two() {
         let result = part_two(&advent_of_code::template::read_file("examples", DAY, 1));
-        assert_eq!(result, None);
+        assert_eq!(result, Some(952408144115));
     }
 }
