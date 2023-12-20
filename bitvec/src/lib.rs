@@ -1,4 +1,5 @@
 use std::fmt::{Display, Formatter, Result};
+use std::hash::{Hash, Hasher};
 use std::iter::FromIterator;
 use std::ops::Index;
 use std::ops::{BitAnd, BitOr, BitXor};
@@ -9,9 +10,18 @@ pub struct BitVec64 {
     size: u8,
 }
 
+impl Hash for BitVec64 {
+    #[inline]
+    fn hash<H: Hasher>(&self, hasher: &mut H) {
+        hasher.write_u64(self.content);
+        hasher.write_u8(self.size);
+    }
+}
+
 impl Index<usize> for BitVec64 {
     type Output = bool;
 
+    #[inline]
     fn index(&self, index: usize) -> &Self::Output {
         assert!(index < self.size as usize);
         // index by highest significant bit first
@@ -26,6 +36,7 @@ impl Index<usize> for BitVec64 {
 }
 
 impl PartialEq for BitVec64 {
+    #[inline]
     fn eq(&self, other: &Self) -> bool {
         self.size == other.size && self.content == other.content
     }
@@ -34,6 +45,7 @@ impl PartialEq for BitVec64 {
 impl BitXor for BitVec64 {
     type Output = Self;
 
+    #[inline]
     fn bitxor(self, rhs: Self) -> Self::Output {
         assert_eq!(self.size, rhs.size);
         Self {
@@ -46,6 +58,7 @@ impl BitXor for BitVec64 {
 impl BitOr for BitVec64 {
     type Output = Self;
 
+    #[inline]
     fn bitor(self, rhs: Self) -> Self::Output {
         assert_eq!(self.size, rhs.size);
         Self {
@@ -58,6 +71,7 @@ impl BitOr for BitVec64 {
 impl BitAnd for BitVec64 {
     type Output = Self;
 
+    #[inline]
     fn bitand(self, rhs: Self) -> Self::Output {
         assert_eq!(self.size, rhs.size);
         Self {
@@ -68,16 +82,19 @@ impl BitAnd for BitVec64 {
 }
 
 impl BitVec64 {
+    #[inline]
     pub fn from_content(content: u64, size: u8) -> Self {
         assert!(size <= 64);
         Self { content, size }
     }
 
+    #[inline]
     pub fn from_size(size: u8) -> Self {
         assert!(size <= 64);
         Self { content: 0, size }
     }
 
+    #[inline]
     pub fn from_str(input: &str, true_value: char, false_value: char) -> Self {
         let len = input.len();
         assert!(len <= 64);
@@ -97,6 +114,7 @@ impl BitVec64 {
         }
     }
 
+    #[inline]
     pub fn slice(&self, start: usize, end: usize) -> u64 {
         assert!(start < end);
         assert!(end <= self.size as usize);
@@ -107,16 +125,32 @@ impl BitVec64 {
         (self.content & mask) >> end
     }
 
+    #[inline]
     pub fn len(&self) -> usize {
         self.size as usize
     }
 
+    #[inline]
     pub fn count_ones(&self) -> u32 {
         self.content.count_ones()
     }
 
+    #[inline]
     pub fn count_zeros(&self) -> u32 {
         (self.size as u32) - self.content.count_ones()
+    }
+
+    #[inline]
+    pub fn set(&mut self, index: usize, value: bool) {
+        assert!(index < self.size as usize);
+        // index by highest significant bit first
+        let index = self.size as usize - index - 1;
+        let mask = 1 << index;
+        if value {
+            self.content |= mask;
+        } else {
+            self.content &= !mask;
+        }
     }
 }
 
@@ -127,6 +161,7 @@ pub struct BitVec64Fmt<'a> {
 }
 
 impl BitVec64 {
+    #[inline]
     pub fn as_fmt(&self, true_str: char, false_str: char) -> BitVec64Fmt {
         BitVec64Fmt {
             bitvec: self,
@@ -137,6 +172,7 @@ impl BitVec64 {
 }
 
 impl Display for BitVec64Fmt<'_> {
+    #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         for i in 0..self.bitvec.len() {
             if self.bitvec[i] {
@@ -150,6 +186,7 @@ impl Display for BitVec64Fmt<'_> {
 }
 
 impl Display for BitVec64 {
+    #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         self.as_fmt('1', '0').fmt(f)
     }
@@ -163,6 +200,7 @@ pub struct BitVec64Iter {
 impl Iterator for BitVec64Iter {
     type Item = bool;
 
+    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         if self.pos >= self.bitvec.len() {
             None
@@ -174,6 +212,7 @@ impl Iterator for BitVec64Iter {
     }
 }
 impl FromIterator<bool> for BitVec64 {
+    #[inline]
     fn from_iter<I: IntoIterator<Item = bool>>(iter: I) -> Self {
         let mut content = 0;
         let mut size = 0;
@@ -186,6 +225,7 @@ impl FromIterator<bool> for BitVec64 {
 }
 
 impl BitVec64 {
+    #[inline]
     pub fn iter(&self) -> BitVec64Iter {
         BitVec64Iter {
             bitvec: self.clone(),
@@ -309,6 +349,15 @@ mod tests {
     fn test_bitvec64_count_zeros() {
         let bv = BitVec64::from_content(0b1100, 4);
         assert_eq!(bv.count_zeros(), 2);
+    }
+
+    #[test]
+    fn test_set_bit() {
+        let mut bv = BitVec64::from_content(0b1100, 4);
+        bv.set(1, false);
+        assert_eq!(bv.content, 0b1000);
+        bv.set(1, true);
+        assert_eq!(bv.content, 0b1100);
     }
 
     #[test]

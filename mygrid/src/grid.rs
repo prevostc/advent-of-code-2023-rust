@@ -66,6 +66,11 @@ impl<T> Grid<T> {
     }
 
     #[inline]
+    pub fn row(&self, row: usize) -> &[T] {
+        &self.content[(row * self.width)..((row + 1) * self.width)]
+    }
+
+    #[inline]
     pub fn resize(&mut self, width: usize, height: usize, default: T)
     where
         T: Copy,
@@ -134,6 +139,21 @@ impl<T> Grid<T> {
     #[inline]
     pub fn iter(&self) -> impl Iterator<Item = &T> {
         self.content.iter()
+    }
+
+    #[inline]
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut T> {
+        self.content.iter_mut()
+    }
+
+    #[inline]
+    pub fn iter_rows(&self) -> impl Iterator<Item = &[T]> {
+        self.content.chunks(self.width)
+    }
+
+    #[inline]
+    pub fn iter_rows_mut(&mut self) -> impl Iterator<Item = &mut [T]> {
+        self.content.chunks_mut(self.width)
     }
 }
 
@@ -261,6 +281,14 @@ mod tests {
     }
 
     #[test]
+    pub fn test_grid_row() {
+        let grid = Grid::new_from_str("123\n456\n789", &|c| c);
+        assert_eq!(grid.row(0), &['1', '2', '3'][..]);
+        assert_eq!(grid.row(1), &['4', '5', '6'][..]);
+        assert_eq!(grid.row(2), &['7', '8', '9'][..]);
+    }
+
+    #[test]
     pub fn test_grid_from_vec() {
         let grid = Grid::from_vec(vec!['1', '2', '3', '4', '5', '6', '7', '8', '9'], 3);
         assert_eq!(grid.width, 3);
@@ -275,6 +303,58 @@ mod tests {
         assert_eq!(grid.content[6], '7');
         assert_eq!(grid.content[7], '8');
         assert_eq!(grid.content[8], '9');
+    }
+
+    #[test]
+    pub fn test_iter() {
+        let grid = Grid::new_from_str("123\n456\n789", &|c| c);
+        let mut iter = grid.iter();
+        assert_eq!(iter.next(), Some(&'1'));
+        assert_eq!(iter.next(), Some(&'2'));
+        assert_eq!(iter.next(), Some(&'3'));
+        assert_eq!(iter.next(), Some(&'4'));
+        assert_eq!(iter.next(), Some(&'5'));
+        assert_eq!(iter.next(), Some(&'6'));
+        assert_eq!(iter.next(), Some(&'7'));
+        assert_eq!(iter.next(), Some(&'8'));
+        assert_eq!(iter.next(), Some(&'9'));
+        assert_eq!(iter.next(), None);
+    }
+
+    #[test]
+    pub fn test_iter_mut() {
+        let mut grid = Grid::new_from_str("123\n456\n789", &|c| c);
+        let mut iter = grid.iter_mut();
+        assert_eq!(iter.next(), Some(&mut '1'));
+        assert_eq!(iter.next(), Some(&mut '2'));
+        assert_eq!(iter.next(), Some(&mut '3'));
+        assert_eq!(iter.next(), Some(&mut '4'));
+        assert_eq!(iter.next(), Some(&mut '5'));
+        assert_eq!(iter.next(), Some(&mut '6'));
+        assert_eq!(iter.next(), Some(&mut '7'));
+        assert_eq!(iter.next(), Some(&mut '8'));
+        assert_eq!(iter.next(), Some(&mut '9'));
+        assert_eq!(iter.next(), None);
+    }
+
+    #[test]
+    pub fn test_iter_rows() {
+        let grid = Grid::new_from_str("123\n456\n789", &|c| c);
+        let mut iter = grid.iter_rows();
+        assert_eq!(iter.next(), Some(&['1', '2', '3'][..]));
+        assert_eq!(iter.next(), Some(&['4', '5', '6'][..]));
+        assert_eq!(iter.next(), Some(&['7', '8', '9'][..]));
+        assert_eq!(iter.next(), None);
+    }
+
+    #[test]
+    pub fn test_iter_rows_mut() {
+        let mut grid = Grid::new_from_str("123\n456\n789", &|c| c);
+        let mut iter = grid.iter_rows_mut();
+        assert_eq!(iter.next(), Some(&mut ['1', '2', '3'][..]));
+        assert_eq!(iter.next(), Some(&mut ['4', '5', '6'][..]));
+        assert_eq!(iter.next(), Some(&mut ['7', '8', '9'][..]));
+        assert_eq!(iter.next(), None);
     }
 
     #[test]
