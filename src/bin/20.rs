@@ -193,7 +193,7 @@ pub fn part_one(input: &str) -> Option<u32> {
 
     let mut graph = graph;
     for i in 0..1000 {
-        println!("================= Cycle {} BEGIN =================", i);
+        //println!("================= Cycle {} BEGIN =================", i);
         let mut q = VecDeque::with_capacity(1000);
         q.push_back((0, 0, false));
 
@@ -204,24 +204,20 @@ pub fn part_one(input: &str) -> Option<u32> {
                 if let Some(output_pulse) = output_pulse {
                     if output_pulse {
                         total_high += 1;
-                        println!(
-                            "{} -high-> {}",
-                            graph.get_name(gate_idx),
-                            graph.get_name(output_idx)
-                        );
                     } else {
                         total_low += 1;
-                        println!(
-                            "{} -low-> {}",
-                            graph.get_name(gate_idx),
-                            graph.get_name(output_idx)
-                        );
                     }
+                    println!(
+                        "{} -{}-> {}",
+                        graph.get_name(gate_idx),
+                        output_pulse,
+                        graph.get_name(output_idx)
+                    );
                     q.push_back((output_idx, gate_idx, output_pulse));
                 }
             }
         }
-        println!("================= Cycle {} END =================", i);
+        //println!("================= Cycle {} END =================", i);
     }
 
     Some(total_high * total_low)
