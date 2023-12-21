@@ -12,12 +12,12 @@ pub fn solve(input: &str, target_steps: u64) -> Option<u64> {
     q.push_back((start_pos, 0));
     let mut total_matching = 0;
 
+    // also account for all grid repeats we don't need to visit again
+    let mut visited_grids = HashSet::new();
+
     while let Some((pos, steps)) = q.pop_front() {
-        if !grid.is_in_bounds(pos)
-            || visited.contains(&pos)
-            || grid[pos] == '#'
-            || steps > target_steps
-        {
+        let mapped_pos = pos.infinite_grid_to_real_grid(grid.height, grid.width);
+        if visited.contains(&pos) || grid[mapped_pos] == '#' || steps > target_steps {
             continue;
         }
         visited.insert(pos);
@@ -35,16 +35,43 @@ pub fn solve(input: &str, target_steps: u64) -> Option<u64> {
 }
 
 pub fn part_one(input: &str) -> Option<u64> {
-    solve(input, 6)
+    solve(input, 64)
 }
 
 pub fn part_two(input: &str) -> Option<u64> {
-    None
+    solve(input, 5000)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_part_two_5000() {
+        let result = solve(
+            &advent_of_code::template::read_file("examples", DAY, 1),
+            5000,
+        );
+        assert_eq!(result, Some(16733044));
+    }
+
+    #[test]
+    fn test_part_two_1000() {
+        let result = solve(
+            &advent_of_code::template::read_file("examples", DAY, 1),
+            1000,
+        );
+        assert_eq!(result, Some(668697));
+    }
+
+    #[test]
+    fn test_part_two_500() {
+        let result = solve(
+            &advent_of_code::template::read_file("examples", DAY, 1),
+            500,
+        );
+        assert_eq!(result, Some(167004));
+    }
 
     #[test]
     fn test_part_one() {
