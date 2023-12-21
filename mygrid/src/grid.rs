@@ -45,6 +45,39 @@ impl<T> Grid<T> {
     }
 
     #[inline]
+    pub fn new_from_str_capture_start(
+        input: &str,
+        map_char: &dyn Fn(char) -> T,
+        is_start: &dyn Fn(T) -> bool,
+    ) -> (Self, Point)
+    where
+        T: From<char> + Copy,
+    {
+        let width = input.lines().next().unwrap().len();
+
+        let mut content = Vec::new();
+        let mut start = None;
+        for (i, c) in input.chars().filter(|&c| c != '\n').enumerate() {
+            let t = map_char(c);
+            if is_start(t) {
+                start = Some(Point::new_usize(i / width, i % width));
+            }
+            content.push(t);
+        }
+
+        let height = content.len() / width;
+
+        (
+            Self {
+                width,
+                height,
+                content,
+            },
+            start.unwrap(),
+        )
+    }
+
+    #[inline]
     pub fn from_vec(content: Vec<T>, width: usize) -> Self {
         let height = content.len() / width;
 
@@ -303,6 +336,25 @@ mod tests {
         assert_eq!(grid.content[6], '7');
         assert_eq!(grid.content[7], '8');
         assert_eq!(grid.content[8], '9');
+    }
+
+    #[test]
+    pub fn test_grid_new_from_str_with_start_pos() {
+        let (grid, start) =
+            Grid::new_from_str_capture_start("123\n456\n789", &|c| c, &|c| c == '5');
+        assert_eq!(grid.width, 3);
+        assert_eq!(grid.height, 3);
+        assert_eq!(grid.content.len(), 9);
+        assert_eq!(grid.content[0], '1');
+        assert_eq!(grid.content[1], '2');
+        assert_eq!(grid.content[2], '3');
+        assert_eq!(grid.content[3], '4');
+        assert_eq!(grid.content[4], '5');
+        assert_eq!(grid.content[5], '6');
+        assert_eq!(grid.content[6], '7');
+        assert_eq!(grid.content[7], '8');
+        assert_eq!(grid.content[8], '9');
+        assert_eq!(start, Point::new(1, 1));
     }
 
     #[test]
