@@ -1,66 +1,160 @@
 use std::collections::{HashMap, VecDeque};
 
-use bitvec::BitVec64;
 use itertools::Itertools;
-use mygrid::{grid::Grid, point::Point};
 use regex::Regex;
 
 advent_of_code::solution!(20);
 
-#[derive(Clone, Hash)]
-enum Gate {
-    FlipFlop(bool),
-    Conjunction(BitVec64, u32),
-    PassThrough,
+#[derive(Debug, Clone, PartialEq, Copy)]
+enum Power {
+    High,
+    Low,
 }
 
-struct Graph {
-    edges: Grid<bool>, // true in (1, 3) means 1 -> 3
-    node_data: Vec<Gate>,
-    name_to_idx: HashMap<String, usize>,
+#[derive(Debug, Clone)]
+struct Signal {
+    from: String,
+    power: Power,
+    to: String,
 }
 
-impl Graph {
-    fn new() -> Self {
-        Self {
-            edges: Grid::new(100, 100, false),
-            node_data: Vec::with_capacity(100),
-            name_to_idx: HashMap::new(),
-        }
-    }
+trait Gate {
+    fn apply_signal(&mut self, signal: &Signal) -> Vec<Signal>;
+    fn get_downtream_gates(&self) -> Vec<String>;
+    fn register_inputs(&mut self, inputs: Vec<String>) {}
+}
 
-    fn get_or_add_node(&mut self, name: &str, gate: Gate) -> usize {
-        if let Some(idx) = self.name_to_idx.get(name) {
-            match self.node_data[*idx] {
-                Gate::PassThrough => {
-                    self.node_data[*idx] = gate;
-                }
-                _ => {}
+#[derive(Debug, Clone)]
+struct FlipFlop {
+    is_on: bool,
+    connections: Vec<String>,
+}
+
+impl Gate for FlipFlop {
+    fn apply_signal(&mut self, signal: &Signal) -> Vec<Signal> {
+        match signal.power {
+            Power::High => vec![],
+            Power::Low => {
+                self.is_on = !self.is_on;
+                self.connections
+                    .iter()
+                    .map(|to| Signal {
+                        from: signal.to.clone(),
+                        power: match self.is_on {
+                            true => Power::High,
+                            false => Power::Low,
+                        },
+                        to: to.clone(),
+                    })
+                    .collect_vec()
             }
-            *idx
-        } else {
-            let idx = self.node_data.len();
-            self.node_data.push(gate);
-            self.name_to_idx.insert(name.to_owned(), idx);
-            idx
         }
     }
+    fn get_downtream_gates(&self) -> Vec<String> {
+        self.connections.clone()
+    }
+    fn register_inputs(&mut self, inputs: Vec<String>) {}
+}
 
-    fn connect(&mut self, from: &str, to: &str) {
-        let from_idx = self.get_or_add_node(from, Gate::PassThrough);
-        let to_idx = self.get_or_add_node(to, Gate::PassThrough);
-        self.edges[Point::new_usize(from_idx, to_idx)] = true;
+impl FlipFlop {
+    fn new(connections: Vec<String>) -> Self {
+        Self {
+            is_on: false,
+            connections,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+struct Broadcaster {
+    connections: Vec<String>,
+}
+
+impl Gate for Broadcaster {
+    fn apply_signal(&mut self, signal: &Signal) -> Vec<Signal> {
+        self.connections
+            .iter()
+            .map(|to| Signal {
+                from: signal.to.clone(),
+                power: signal.power.clone(),
+                to: to.clone(),
+            })
+            .collect_vec()
+    }
+    fn get_downtream_gates(&self) -> Vec<String> {
+        self.connections.clone()
+    }
+    fn register_inputs(&mut self, inputs: Vec<String>) {}
+}
+
+impl Broadcaster {
+    fn new(connections: Vec<String>) -> Self {
+        Self { connections }
+    }
+}
+
+#[derive(Debug, Clone)]
+struct Conjunction {
+    last_input_state: HashMap<String, Power>,
+    connections: Vec<String>,
+}
+
+impl Gate for Conjunction {
+    fn apply_signal(&mut self, signal: &Signal) -> Vec<Signal> {
+        self.last_input_state
+            .get_mut(signal.from.as_str())
+            .map(|input| {
+                *input = signal.power;
+            });
+        let has_all_high = self
+            .last_input_state
+            .values()
+            .all(|&power| power == Power::High);
+        self.connections
+            .iter()
+            .map(|to| Signal {
+                from: signal.to.clone(),
+                power: match has_all_high {
+                    true => Power::Low,
+                    false => Power::High,
+                },
+                to: to.clone(),
+            })
+            .collect_vec()
+    }
+    fn get_downtream_gates(&self) -> Vec<String> {
+        self.connections.clone()
     }
 
-    // returns the number idx of the button
-    fn parse(&mut self, input: &str) -> usize {
-        // node idx of the button
-        let line_re = Regex::new(r"(?:(?<gate_type>%|&)(?<gate_name>\w+)|(?<broadcaster>broadcaster)) -> (?<output_gates>(?:\w|,| )+)").unwrap();
+    fn register_inputs(&mut self, inputs: Vec<String>) {
+        self.last_input_state = HashMap::new();
+        for input in inputs {
+            self.last_input_state.insert(input, Power::Low);
+        }
+    }
+}
 
-        self.get_or_add_node("button", Gate::PassThrough);
-        self.get_or_add_node("broadcaster", Gate::PassThrough);
-        self.connect("button", "broadcaster");
+impl Conjunction {
+    fn new(connections: Vec<String>) -> Self {
+        Self {
+            last_input_state: HashMap::new(),
+            connections,
+        }
+    }
+}
 
+struct System {
+    gates: HashMap<String, Box<dyn Gate>>,
+}
+
+impl System {
+    fn parse(input: &str) -> Self {
+        let line_re =
+            Regex::new(r"(?:(?<gate_type>%|&|b)(?<gate_name>\w+)) -> (?<output_gates>(?:\w|,| )+)")
+                .unwrap();
+
+        let mut gates: HashMap<String, Box<dyn Gate>> = HashMap::new();
+        let mut input_to_register: HashMap<String, Vec<String>> = HashMap::new();
         for line in input.lines().filter(|l| !l.is_empty()) {
             let caps = line_re.captures(line).unwrap();
             let output_gates = caps
@@ -68,154 +162,87 @@ impl Graph {
                 .unwrap()
                 .as_str()
                 .split(", ")
+                .map(|s| s.to_string())
                 .collect_vec();
 
-            let name = if let Some(_) = caps.name("broadcaster") {
-                self.get_or_add_node("broadcaster", Gate::PassThrough);
-                "broadcaster"
-            } else {
-                let gate_type = caps.name("gate_type").unwrap().as_str();
-                let gate_name = caps.name("gate_name").unwrap().as_str();
-                let gate = match gate_type {
-                    "%" => Gate::FlipFlop(false),
-                    "&" => Gate::Conjunction(BitVec64::from_size(32), 0),
-                    _ => panic!("Unknown gate type {}", gate_type),
-                };
-                self.get_or_add_node(gate_name, gate);
-                gate_name
+            let gate_name = caps.name("gate_name").unwrap().as_str().to_string();
+            let gate_type = caps.name("gate_type").unwrap().as_str();
+            match gate_type {
+                "%" => {
+                    let gate = Box::new(FlipFlop::new(output_gates.clone()));
+                    gates.insert(gate_name.clone(), gate);
+                }
+                "&" => {
+                    let gate = Box::new(Conjunction::new(output_gates.clone()));
+                    gates.insert(gate_name.clone(), gate);
+                }
+                "b" => {
+                    let gate = Box::new(Broadcaster::new(output_gates.clone()));
+                    gates.insert("broadcaster".to_string(), gate);
+                }
+                _ => panic!("Unknown gate type {}", gate_type),
             };
 
-            for output_name in output_gates {
-                self.connect(name, output_name);
+            for output_gate in output_gates {
+                let mut inputs = match input_to_register.get(&output_gate) {
+                    Some(inputs) => inputs.clone(),
+                    None => Vec::new(),
+                };
+                inputs.push(gate_name.clone());
+                input_to_register.insert(output_gate, inputs);
             }
         }
 
-        let count = self.node_data.len();
-        self.edges
-            .resize_to_max_point(Point::new_usize(count, count), false);
-
-        // set conjunction inboud count
-        for (idx, gate) in self.node_data.iter_mut().enumerate() {
-            if let Gate::Conjunction(_, count) = gate {
-                let input_count = self
-                    .edges
-                    .row(idx)
-                    .iter()
-                    .filter(|&&is_connected| is_connected)
-                    .count();
-                *count = input_count as u32;
-            }
+        // set inputs for all gates
+        for (name, gate) in gates.iter_mut() {
+            let inputs = match input_to_register.get(name) {
+                Some(inputs) => inputs.clone(),
+                None => Vec::new(),
+            };
+            gate.register_inputs(inputs);
         }
 
-        0
-    }
-
-    #[inline]
-    fn get_output_gate_indices(&self, gate_idx: usize) -> Vec<usize> {
-        self.edges
-            .row(gate_idx)
-            .iter()
-            .enumerate()
-            .filter_map(|(idx, &is_connected)| if is_connected { Some(idx) } else { None })
-            .collect_vec()
-    }
-
-    #[inline]
-    fn apply_signal(
-        &mut self,
-        gate_idx: usize,
-        input_idx: usize,
-        input_pulse: bool,
-    ) -> Option<bool> {
-        let gate = &self.node_data[gate_idx];
-        let (gate, output_signal) = match gate {
-            Gate::FlipFlop(is_on) => match (is_on, input_pulse) {
-                (_, true) => (Gate::FlipFlop(*is_on), None),
-                (false, false) => (Gate::FlipFlop(true), Some(true)),
-                (true, false) => (Gate::FlipFlop(false), Some(false)),
-            },
-            Gate::Conjunction(input_memory, input_count) => {
-                let mut new_memory = input_memory.clone();
-                new_memory.set(input_idx, input_pulse);
-                let has_all_high = new_memory.count_ones() == *input_count;
-                if has_all_high {
-                    (Gate::Conjunction(new_memory, *input_count), Some(false))
-                } else {
-                    (Gate::Conjunction(new_memory, *input_count), Some(true))
+        // register target gates that do not exists in the input left side
+        let mut undeclared_gates: Vec<String> = Vec::new();
+        for (_, gate) in gates.iter() {
+            let downstream_gates = gate.get_downtream_gates();
+            for downstream_gate in downstream_gates {
+                if !gates.contains_key(&downstream_gate) {
+                    undeclared_gates.push(downstream_gate);
                 }
             }
-            Gate::PassThrough => (Gate::PassThrough, Some(input_pulse)),
-        };
-        self.node_data[gate_idx] = gate;
-
-        output_signal
-    }
-
-    #[inline]
-    fn get_name(&self, gate_idx: usize) -> &str {
-        self.name_to_idx
-            .iter()
-            .find(|(_, &idx)| idx == gate_idx)
-            .unwrap()
-            .0
-    }
-
-    #[inline]
-    fn debug_print_graph(&self) {
-        println!("================= Graph =================");
-        for (name, idx) in &self.name_to_idx {
-            let gate_type = match &self.node_data[*idx] {
-                Gate::FlipFlop(_) => "%",
-                Gate::Conjunction(_, _) => "&",
-                Gate::PassThrough => "=",
-            };
-            println!(
-                "{}{} -> {}",
-                gate_type,
-                name,
-                self.get_output_gate_indices(*idx)
-                    .iter()
-                    .map(|&idx| self.get_name(idx))
-                    .join(", ")
-            );
         }
-        println!("=================== = ===================");
+        for undeclared_gate in undeclared_gates {
+            let gate = Box::new(Broadcaster::new(vec![]));
+            gates.insert(undeclared_gate, gate);
+        }
+
+        Self { gates }
     }
 }
 
 pub fn part_one(input: &str) -> Option<u32> {
-    let mut graph = Graph::new();
-    graph.parse(input);
-
-    graph.debug_print_graph();
+    let mut system = System::parse(input);
     let mut total_low = 0;
     let mut total_high = 0;
 
-    let mut graph = graph;
-    for i in 0..1000 {
+    for _ in 0..1000 {
         //println!("================= Cycle {} BEGIN =================", i);
-        let mut q = VecDeque::with_capacity(1000);
-        q.push_back((0, 0, false));
+        let mut q = VecDeque::with_capacity(100);
+        q.push_back(Signal {
+            from: "button".to_string(),
+            power: Power::Low,
+            to: "broadcaster".to_string(),
+        });
 
-        while let Some((gate_idx, input_idx, input_pulse)) = q.pop_front() {
-            let output_pulse = graph.apply_signal(gate_idx, input_idx, input_pulse);
-
-            for output_idx in graph.get_output_gate_indices(gate_idx) {
-                if let Some(output_pulse) = output_pulse {
-                    if output_pulse {
-                        total_high += 1;
-                    } else {
-                        total_low += 1;
-                    }
-                    println!(
-                        "{} -{}-> {}",
-                        graph.get_name(gate_idx),
-                        output_pulse,
-                        graph.get_name(output_idx)
-                    );
-                    q.push_back((output_idx, gate_idx, output_pulse));
-                }
+        while let Some(signal) = q.pop_front() {
+            match signal.power {
+                Power::High => total_high += 1,
+                Power::Low => total_low += 1,
             }
+            let gate = system.gates.get_mut(&signal.to).unwrap();
+            let new_signals = gate.apply_signal(&signal);
+            q.extend(new_signals);
         }
         //println!("================= Cycle {} END =================", i);
     }
