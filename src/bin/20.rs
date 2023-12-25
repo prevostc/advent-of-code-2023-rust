@@ -21,7 +21,7 @@ struct Signal {
 trait Gate {
     fn apply_signal(&mut self, signal: &Signal) -> Vec<Signal>;
     fn get_downtream_gates(&self) -> Vec<String>;
-    fn register_inputs(&mut self, inputs: Vec<String>) {}
+    fn register_inputs(&mut self, inputs: Vec<String>);
 }
 
 #[derive(Debug, Clone)]
@@ -53,7 +53,7 @@ impl Gate for FlipFlop {
     fn get_downtream_gates(&self) -> Vec<String> {
         self.connections.clone()
     }
-    fn register_inputs(&mut self, inputs: Vec<String>) {}
+    fn register_inputs(&mut self, _inputs: Vec<String>) {}
 }
 
 impl FlipFlop {
@@ -84,7 +84,7 @@ impl Gate for Broadcaster {
     fn get_downtream_gates(&self) -> Vec<String> {
         self.connections.clone()
     }
-    fn register_inputs(&mut self, inputs: Vec<String>) {}
+    fn register_inputs(&mut self, _inputs: Vec<String>) {}
 }
 
 impl Broadcaster {
@@ -221,7 +221,7 @@ impl System {
     }
 }
 
-pub fn part_one(input: &str) -> Option<u32> {
+pub fn part_one(input: &str) -> Option<u64> {
     let mut system = System::parse(input);
     let mut total_low = 0;
     let mut total_high = 0;
@@ -250,8 +250,43 @@ pub fn part_one(input: &str) -> Option<u32> {
     Some(total_high * total_low)
 }
 
-pub fn part_two(_input: &str) -> Option<u32> {
-    None
+pub fn part_two(input: &str) -> Option<u64> {
+    let loop_end_nodes = vec!["bp", "xc", "th", "pd"];
+    let btn_press_needed = loop_end_nodes
+        .iter()
+        .map(|&must_be_high| {
+            // do button presses until we see high on the required node
+            let mut system = System::parse(input);
+            let mut total_btn_presses = 0;
+            loop {
+                let mut q = VecDeque::with_capacity(100);
+                q.push_back(Signal {
+                    from: "button".to_string(),
+                    power: Power::Low,
+                    to: "broadcaster".to_string(),
+                });
+                total_btn_presses += 1;
+
+                while let Some(signal) = q.pop_front() {
+                    if signal.from == *must_be_high && signal.power == Power::High {
+                        return total_btn_presses;
+                    }
+                    let gate = system.gates.get_mut(&signal.to).unwrap();
+                    let new_signals = gate.apply_signal(&signal);
+                    q.extend(new_signals);
+                }
+            }
+        })
+        .collect_vec();
+
+    println!("btn_press_needed: {:?}", btn_press_needed.clone());
+
+    // pgcm between all nodes
+    let mut lcm: u64 = 1;
+    for btn_press in btn_press_needed {
+        lcm = num::integer::lcm(lcm, btn_press);
+    }
+    Some(lcm)
 }
 
 #[cfg(test)]
