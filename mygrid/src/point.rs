@@ -32,20 +32,6 @@ impl Point {
     }
 
     #[inline]
-    pub const fn infinite_grid_to_real_grid(
-        &self,
-        real_grid_lines: usize,
-        real_grid_columns: usize,
-    ) -> Self {
-        // account for negative values as well
-        let line = (self.line % real_grid_lines as isize + real_grid_lines as isize)
-            % real_grid_lines as isize;
-        let column = (self.column % real_grid_columns as isize + real_grid_columns as isize)
-            % real_grid_columns as isize;
-        Point::new(line, column)
-    }
-
-    #[inline]
     pub fn apply_direction(&self, direction: Direction) -> Self {
         Point::new(
             self.line + direction.vertical,
