@@ -1,6 +1,8 @@
 use bigdecimal::BigDecimal;
 use itertools::Itertools;
 use std::str::FromStr;
+use z3::ast::{Ast, Int};
+use z3::{Config, Context, Solver};
 
 advent_of_code::solution!(24);
 
@@ -97,17 +99,65 @@ fn solve_part1(input: &str, test_area: [BigDecimal; 2]) -> i32 {
     intersecting_in_test_area
 }
 
-pub fn part_one(input: &str) -> Option<u32> {
+pub fn part_one(input: &str) -> Option<i64> {
     let test_area: [BigDecimal; 2] = [
         BigDecimal::from_str("200000000000000").unwrap(),
         BigDecimal::from_str("400000000000000").unwrap(),
     ];
     let result = solve_part1(input, test_area);
-    Some(result as u32)
+    Some(result as i64)
 }
 
-pub fn part_two(_input: &str) -> Option<u32> {
-    None
+pub fn part_two(input: &str) -> Option<i64> {
+    let cfg = Config::new();
+    let ctx = Context::new(&cfg);
+    let solver = Solver::new(&ctx);
+
+    let px = Int::new_const(&ctx, "px");
+    let py = Int::new_const(&ctx, "py");
+    let pz = Int::new_const(&ctx, "pz");
+    let vx = Int::new_const(&ctx, "vx");
+    let vy = Int::new_const(&ctx, "vy");
+    let vz = Int::new_const(&ctx, "vz");
+
+    // used this: https://github.com/tymscar/Advent-Of-Code/blob/master/2023/rust/src/day24/part2.rs
+    // sorry, I'm here to learn rust, not z3 or math
+    for hail_line in input.lines().take(3) {
+        // only need 3
+        let (position, velocity) = hail_line.split_once("@").unwrap();
+        let oxyz = position
+            .split(", ")
+            .map(str::trim)
+            .map(str::parse::<i64>)
+            .map(Result::unwrap)
+            .collect::<Vec<_>>();
+        let dxyz = velocity
+            .split(", ")
+            .map(str::trim)
+            .map(str::parse::<i64>)
+            .map(Result::unwrap)
+            .collect::<Vec<_>>();
+
+        let pxn = Int::from_i64(&ctx, oxyz[0]);
+        let pyn = Int::from_i64(&ctx, oxyz[1]);
+        let pzn = Int::from_i64(&ctx, oxyz[2]);
+        let vxn = Int::from_i64(&ctx, dxyz[0]);
+        let vyn = Int::from_i64(&ctx, dxyz[1]);
+        let vzn = Int::from_i64(&ctx, dxyz[2]);
+        let tn = Int::fresh_const(&ctx, "t");
+
+        solver.assert(&(&pxn + &vxn * &tn)._eq(&(&px + &vx * &tn)));
+        solver.assert(&(&pyn + &vyn * &tn)._eq(&(&py + &vy * &tn)));
+        solver.assert(&(&pzn + &vzn * &tn)._eq(&(&pz + &vz * &tn)));
+    }
+
+    solver.check();
+    let model = solver.get_model().unwrap();
+    let x = model.get_const_interp(&px).unwrap().as_i64().unwrap();
+    let y = model.get_const_interp(&py).unwrap().as_i64().unwrap();
+    let z = model.get_const_interp(&pz).unwrap().as_i64().unwrap();
+
+    Some(x + y + z)
 }
 
 #[cfg(test)]

@@ -23,6 +23,7 @@ range-ext = "0.3.0"
 rayon = "1.8.0"
 regex = "1.10.2"
 rstar = "0.11.0"
+z3 = { version = "0.12.1", features = ["static-link-z3"] }
 
 [dependencies.bitvec]
 path = "./bitvec"
