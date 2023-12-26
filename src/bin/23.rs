@@ -1,8 +1,8 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 
-use itertools::Itertools;
+use bitvec::BitVec64;
 use mygrid::{
-    direction::{DOWN, LEFT, RIGHT, UP},
+    direction::{DOWN, LEFT, ORTHOGONAL, RIGHT, UP},
     grid::Grid,
     point::Point,
 };
@@ -45,63 +45,118 @@ pub fn part_one(input: &str) -> Option<u32> {
 
 pub fn part_two(input: &str) -> Option<u32> {
     let grid = Grid::new_from_str(input, &|c| c);
-
-    let mut q = VecDeque::new();
-    q.push_back((HashSet::new(), Point::new(0, 1), DOWN, 0, 0));
+    let mut fork_points = HashSet::new();
+    let start_point = Point::new(0, 1);
     let target = Point::new_usize(grid.rows() - 1, grid.cols() - 2);
+    fork_points.insert(start_point);
+    fork_points.insert(target);
 
-    // let mut max_len_per_fork = HashMap::new();
-
-    let mut max_len = 0;
-    while let Some((mut visited, mut p, mut dir, mut len, forks)) = q.pop_front() {
-        let mut branches;
-        // advance as far as possible before branching
-        loop {
-            branches = [dir, dir.rotate_clockwise(), dir.rotate_counterclockwise()]
-                .iter()
-                .map(|&d| (d, p + d))
-                .filter(|&(_, p)| grid.is_in_bounds(p))
-                .filter(|&(_, p)| grid[p] != '#')
-                .filter(|&(_, p)| !visited.contains(&p))
-                .collect_vec();
-
-            if branches.len() != 1 {
-                break;
-            }
-            if p == target {
-                max_len = max_len.max(len);
-                break;
-            }
-            dir = branches[0].0;
-            p = branches[0].1;
-            len += 1;
-        }
-
-        // match max_len_per_fork.get(&p) {
-        //     Some(&(ml_so_far, forks_so_far)) if forks == forks_so_far && len < ml_so_far => {
-        //         continue
-        //     }
-        //     _ => max_len_per_fork.insert(p, (len, forks)),
-        // };
-
-        visited.insert(p);
-
-        match grid[p] {
+    for (p, c) in grid.iter_item_and_position() {
+        match c {
             '#' => {}
-            '.' if p == target => max_len = max_len.max(len),
-            _ if branches.is_empty() => {}
             '.' | '>' | 'v' | '<' | '^' => {
-                // visit depth first to keep memory usage down
-                branches[0..1].iter().for_each(|&(d, p)| {
-                    q.push_front((visited.clone(), p, d, len + 1, forks + 1));
-                });
-                branches[1..].iter().for_each(|&(d, p)| {
-                    q.push_back((visited.clone(), p, d, len + 1, forks + 1));
-                });
+                let branch_count = ORTHOGONAL
+                    .iter()
+                    .map(|&d| (d, p + d))
+                    .filter(|&(_, p)| grid.is_in_bounds(p))
+                    .filter(|&(_, p)| grid[p] != '#')
+                    .count();
+                if branch_count > 2 {
+                    fork_points.insert(p);
+                }
             }
             _ => unreachable!(),
         }
     }
+
+    let mut graph = HashMap::new();
+    for fork_point in fork_points.iter() {
+        let mut q = VecDeque::new();
+        q.push_back((*fork_point, 0));
+        let mut visited = HashSet::new();
+        while let Some((p, len)) = q.pop_front() {
+            if visited.contains(&p) || !grid.is_in_bounds(p) || grid[p] == '#' {
+                continue;
+            }
+            visited.insert(p);
+
+            if p != *fork_point && fork_points.contains(&p) {
+                graph
+                    .entry(*fork_point)
+                    .or_insert_with(Vec::new)
+                    .push((p, len));
+                continue;
+            }
+
+            match grid[p] {
+                '#' => {}
+                '.' | '>' | 'v' | '<' | '^' => {
+                    q.push_back((p + RIGHT, len + 1));
+                    q.push_back((p + DOWN, len + 1));
+                    q.push_back((p + LEFT, len + 1));
+                    q.push_back((p + UP, len + 1));
+                }
+                _ => unreachable!(),
+            }
+        }
+    }
+
+    // print digraph
+    // println!("digraph {{");
+    // for (p, edges) in graph.iter() {
+    //     for &(p2, len) in edges {
+    //         // remove duplicate edges
+    //         if p2.line < p.line || (p2.line == p.line && p2.column < p.column) {
+    //             continue;
+    //         }
+    //         println!("  \"{:?}\" -> \"{:?}\" [label=\"{}\"];", p, p2, len);
+    //     }
+    // }
+    // println!("}}");
+
+    // println!("graph: {:?}", graph);
+
+    // we are now in a DAG, because of the "no-backtracking" rule
+    // so finding the longest path is equivalent to finding the shortest path
+    // in the same DAG where each edge has negative weight -len
+    // let mut neg_graph = HashMap::new();
+    // for (p, edges) in graph.iter() {
+    //     for &(p2, len) in edges {
+    //         neg_graph
+    //             .entry(*p)
+    //             .or_insert_with(Vec::new)
+    //             .push((p2, -(len as i32)));
+    //     }
+    // }
+
+    // just dfs to find the longest path
+    let mut max_len = 0;
+    let mut q = VecDeque::new();
+    let points = fork_points.iter().copied().collect::<Vec<_>>();
+    let point_idx = points
+        .iter()
+        .enumerate()
+        .map(|(i, p)| (*p, i))
+        .collect::<HashMap<_, _>>();
+    let base_visited = BitVec64::from_size(points.len() as u8);
+    q.push_back((base_visited.clone(), start_point, 0));
+    while let Some((visited, pos, len)) = q.pop_front() {
+        if pos == target {
+            max_len = max_len.max(len);
+            continue;
+        }
+
+        for (n, d) in graph.get(&pos).unwrap() {
+            let n_idx = point_idx[n];
+            if visited[n_idx] {
+                continue;
+            }
+            let mut new_visited = visited.clone();
+            new_visited.set(n_idx, true);
+            q.push_back((new_visited, *n, len + d));
+        }
+    }
+
     Some(max_len)
 }
 

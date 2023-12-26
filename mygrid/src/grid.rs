@@ -188,6 +188,14 @@ impl<T> Grid<T> {
     pub fn iter_rows_mut(&mut self) -> impl Iterator<Item = &mut [T]> {
         self.content.chunks_mut(self.width)
     }
+
+    #[inline]
+    pub fn iter_item_and_position(&self) -> impl Iterator<Item = (Point, &T)> {
+        self.content
+            .iter()
+            .enumerate()
+            .map(move |(i, t)| (Point::new_usize(i / self.width, i % self.width), t))
+    }
 }
 
 impl<T> Index<Point> for Grid<T> {
